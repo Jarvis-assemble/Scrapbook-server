@@ -1,15 +1,46 @@
 const express = require("express");
 const multer = require("multer");
-const fs = require("fs");
-const path = require("path");
 const cors = require("cors");
+const { MongoClient, ServerApiVersion } = require("mongodb");
+const path = require("path");
+const fs = require("fs");
 
 const app = express();
-const FILE_PATH = path.join(__dirname, "pages.json");
+const PORT = 5000;
 
+require("dotenv").config(); 
+const MONGO_URI = process.env.MONGO_URI; 
+const DB_NAME = "memories_db";
+const COLLECTION_NAME = "memories";
+
+const client = new MongoClient(MONGO_URI, {
+  serverApi: {
+    version: ServerApiVersion.v1,
+    strict: true,
+    deprecationErrors: true,
+  },
+});
+
+// Connect to MongoDB
+async function connectDB() {
+  try {
+    await client.connect();
+    console.log("Connected to MongoDB!");
+  } catch (error) {
+    console.error("MongoDB connection error:", error);
+    process.exit(1);
+  }
+}
+connectDB();
+
+// Multer Storage for Image Uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, "uploads/");
+    const uploadPath = "uploads/";
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath, { recursive: true });
+    }
+    cb(null, uploadPath);
   },
   filename: (req, file, cb) => {
     cb(null, Date.now() + path.extname(file.originalname));
@@ -19,51 +50,58 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "50mb" })); // Increase limit for Base64 images
 
-// Define an API route
-app.get("/api/greet", (req, res) => {
-  res.json({ message: "Hello, this is an API response!" });
+// Fetch Memories (Ensure Base64 Format)
+app.get("/memories", async (req, res) => {
+  try {
+    const db = client.db(DB_NAME);
+    const memories = await db.collection(COLLECTION_NAME).find({}).toArray();
+
+    const formattedMemories = memories.map((memory) => ({
+      ...memory,
+      picture: memory.picture.startsWith("data:image")
+        ? memory.picture
+        : `data:image/jpeg;base64,${memory.picture}`,
+    }));
+
+    res.json(formattedMemories);
+  } catch (error) {
+    console.error("Error fetching memories:", error);
+    res.status(500).json({ error: "Error fetching memories" });
+  }
 });
 
-app.use("/uploads", express.static("uploads"));
+// Upload Memory (Convert to Base64)
+app.post("/memories", upload.single("picture"), async (req, res) => {
+  try {
+    const { title, message, date } = req.body;
+    let pictureData = "";
 
-app.get("/memories", (req, res) => {
-  fs.readFile(FILE_PATH, "utf8", (err, data) => {
-    if (err) {
-      console.error("Error reading file:", err);
-      return res.status(500).json({ error: "Error reading file" });
+    if (req.file) {
+      const imageBuffer = fs.readFileSync(req.file.path);
+      const ext = path.extname(req.file.originalname).substring(1) || "jpeg"; // Ensure a valid MIME type
+      pictureData = `data:image/${ext};base64,${imageBuffer.toString(
+        "base64"
+      )}`;
+
+      // Delete file safely after conversion
+      fs.unlink(req.file.path, (err) => {
+        if (err) console.error("Failed to delete uploaded file:", err);
+      });
     }
-    res.json(JSON.parse(data));
-  });
+
+    const newMemory = { title, message, date, picture: pictureData };
+    const db = client.db(DB_NAME);
+    const result = await db.collection(COLLECTION_NAME).insertOne(newMemory);
+
+    res.status(201).json({ _id: result.insertedId, ...newMemory });
+  } catch (error) {
+    console.error("Error saving memory:", error);
+    res.status(500).json({ error: "Error saving memory" });
+  }
 });
 
-app.post("/memories", upload.single("picture"), (req, res) => {
-  const { title, message, date } = req.body;
-  const picture = req.file ? `/uploads/${req.file.filename}` : "";
-
-  fs.readFile(FILE_PATH, "utf8", (err, data) => {
-    if (err) return res.status(500).send("Error reading file");
-
-    const memories = JSON.parse(data);
-    const newMemory = {
-      id: memories.length + 1,
-      title,
-      picture,
-      message,
-      date,
-    };
-
-    memories.push(newMemory);
-
-    fs.writeFile(FILE_PATH, JSON.stringify(memories, null, 2), (err) => {
-      if (err) return res.status(500).send("Error saving file");
-      res.status(201).json(newMemory);
-    });
-  });
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
 });
-
-const PORT = 5000;
-app.listen(PORT, () =>
-  console.log(`Server running on http://localhost:${PORT}`)
-);
