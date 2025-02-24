@@ -38,7 +38,8 @@ connectDB();
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-app.use(cors());
+// app.use(cors());
+app.use(cors({ origin: "*" }));
 app.use(express.json({ limit: "50mb" })); // Increase limit for Base64 images
 
 // Fetch Memories (Ensure Base64 Format)
