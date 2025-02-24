@@ -8,8 +8,8 @@ const fs = require("fs");
 const app = express();
 const PORT = 5000;
 
-require("dotenv").config(); 
-const MONGO_URI = process.env.MONGO_URI; 
+require("dotenv").config();
+const MONGO_URI = process.env.MONGO_URI;
 const DB_NAME = "memories_db";
 const COLLECTION_NAME = "memories";
 
@@ -34,19 +34,8 @@ async function connectDB() {
 connectDB();
 
 // Multer Storage for Image Uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadPath = "uploads/";
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
-    }
-    cb(null, uploadPath);
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + path.extname(file.originalname));
-  },
-});
 
+const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
 app.use(cors());
@@ -79,16 +68,8 @@ app.post("/memories", upload.single("picture"), async (req, res) => {
     let pictureData = "";
 
     if (req.file) {
-      const imageBuffer = fs.readFileSync(req.file.path);
-      const ext = path.extname(req.file.originalname).substring(1) || "jpeg"; // Ensure a valid MIME type
-      pictureData = `data:image/${ext};base64,${imageBuffer.toString(
-        "base64"
-      )}`;
-
-      // Delete file safely after conversion
-      fs.unlink(req.file.path, (err) => {
-        if (err) console.error("Failed to delete uploaded file:", err);
-      });
+      const ext = path.extname(req.file.originalname).substring(1) || "jpeg"; // Ensure correct format
+      pictureData = `data:image/${ext};base64,${req.file.buffer.toString("base64")}`;
     }
 
     const newMemory = { title, message, date, picture: pictureData };
