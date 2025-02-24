@@ -21,6 +21,11 @@ const upload = multer({ storage });
 app.use(cors());
 app.use(express.json());
 
+// Define an API route
+app.get("/api/greet", (req, res) => {
+  res.json({ message: "Hello, this is an API response!" });
+});
+
 app.use("/uploads", express.static("uploads"));
 
 app.get("/memories", (req, res) => {
