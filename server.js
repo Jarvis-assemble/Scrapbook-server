@@ -55,6 +55,13 @@ app.get("/memories", async (req, res) => {
         : `data:image/jpeg;base64,${memory.picture}`,
     }));
 
+    formattedMemories.push({
+      id: "",
+      title: "",
+      message: "",
+      date: "",
+    });
+
     res.json(formattedMemories);
   } catch (error) {
     console.error("Error fetching memories:", error);
