@@ -57,9 +57,8 @@ app.get("/memories", async (req, res) => {
 
     formattedMemories.push({
       id: "",
-      title: "",
+      title: "More memories in the making...",
       message: "",
-      date: "",
     });
 
     res.json(formattedMemories);
@@ -77,7 +76,9 @@ app.post("/memories", upload.single("picture"), async (req, res) => {
 
     if (req.file) {
       const ext = path.extname(req.file.originalname).substring(1) || "jpeg"; // Ensure correct format
-      pictureData = `data:image/${ext};base64,${req.file.buffer.toString("base64")}`;
+      pictureData = `data:image/${ext};base64,${req.file.buffer.toString(
+        "base64"
+      )}`;
     }
 
     const newMemory = { title, message, date, picture: pictureData };
